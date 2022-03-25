@@ -1,9 +1,8 @@
 from django.db.models.expressions import RawSQL
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets
-from rest_framework.decorators import api_view
 from django.http import JsonResponse
-from django.contrib.gis.db.models.functions import Distance, Area
+from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point
 
 from .models import Building
@@ -14,27 +13,6 @@ class BuildingView(viewsets.ModelViewSet):
     queryset = Building.objects.all()
     serializer_class = BuildingSerializer
 
-    @api_view(['POST'])
-    def create_item(self, request):
-        item = BuildingSerializer(data=request.data)
-        if item.is_valid():
-            item.save()
-            return item.data
-
-    @api_view(['POST'])
-    def update_item(self, request, pk=None):
-        item = Building.objects.get(pk=pk)
-        data = BuildingSerializer(instance=item, data=request.data)
-        if data.is_valid():
-            data.save()
-        return data.data
-    '''
-    @api_view(['DELETE'])
-    def destroy_item(self, request, pk=None):
-        item = get_object_or_404(Building, pk=pk)
-        item.delete()'''
-
-    #@api_view(['GET'])
     def list(self, request):
         min_area = request.GET.get('min', None)
         max_area = request.GET.get('max', None)
@@ -42,7 +20,7 @@ class BuildingView(viewsets.ModelViewSet):
         y_coords = request.GET.get('y', None)
         distance = request.GET.get('dist', None)
 
-        query_set = Building.objects.all()
+        query_set = self.queryset
         if min_area or max_area:
             query_set = self.filter_obj_in_area(query_set, min_area, max_area)
         if x_coords and y_coords and distance:
@@ -52,24 +30,14 @@ class BuildingView(viewsets.ModelViewSet):
 
     # Выдает объекты, с площадью, попадающей в диапазон от min до max
     def filter_obj_in_area(self, query_set, min_area, max_area):
+        query_set = query_set.annotate(area=RawSQL("ST_AREA(geom,true)", []))
         if min_area:
-            query_set = query_set.annotate(area=RawSQL("ST_AREA(geom,true)", [])).filter(area__gt=float(min_area))
+            query_set = query_set.filter(area__gt=float(min_area))
         if max_area:
-            query_set = query_set.annotate(area=RawSQL("ST_AREA(geom,true)", [])).filter(area__lt=float(max_area))
+            query_set = query_set.filter(area__lt=float(max_area))
         return query_set
 
     # Выдает объекты, попадающие в окружность с центром в x, y и радиусом distance
     def filter_obj_in_radius(self, query_set, x_coords, y_coords, distance):
         point = Point(float(x_coords), float(y_coords), srid=4326)
         return query_set.annotate(distance=Distance('geom', point)).order_by('distance')[0:int(distance)]
-
-
-def myArea(corners):
-    n = len(corners) # of corners
-    area = 0.0
-    for i in range(n):
-        j = (i + 1) % n
-        area += corners[i][0] * corners[j][1]
-        area -= corners[j][0] * corners[i][1]
-    area = abs(area) / 2.0
-    return area

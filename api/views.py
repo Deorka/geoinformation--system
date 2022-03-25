@@ -1,3 +1,4 @@
+from django.db.models.expressions import RawSQL
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets
 from rest_framework.decorators import api_view
@@ -12,7 +13,6 @@ from .serializer import BuildingSerializer
 class BuildingView(viewsets.ModelViewSet):
     queryset = Building.objects.all()
     serializer_class = BuildingSerializer
-    # filter_backends = [filters.DjangoFilterBackend]
 
     @api_view(['POST'])
     def create_item(self, request):
@@ -28,14 +28,14 @@ class BuildingView(viewsets.ModelViewSet):
         if data.is_valid():
             data.save()
         return data.data
-
+    '''
     @api_view(['DELETE'])
-    def destroy(self, request, pk=None):
+    def destroy_item(self, request, pk=None):
         item = get_object_or_404(Building, pk=pk)
-        item.delete()
+        item.delete()'''
 
-    @api_view(['GET'])
-    def read_items(self, request):
+    #@api_view(['GET'])
+    def list(self, request):
         min_area = request.GET.get('min', None)
         max_area = request.GET.get('max', None)
         x_coords = request.GET.get('x', None)
@@ -53,12 +53,23 @@ class BuildingView(viewsets.ModelViewSet):
     # Выдает объекты, с площадью, попадающей в диапазон от min до max
     def filter_obj_in_area(self, query_set, min_area, max_area):
         if min_area:
-            query_set = query_set.annotate(Area('geom') > min_area)
+            query_set = query_set.annotate(area=RawSQL("ST_AREA(geom,true)", [])).filter(area__gt=float(min_area))
         if max_area:
-            query_set = query_set.annotate(Area('geom') < max_area)
+            query_set = query_set.annotate(area=RawSQL("ST_AREA(geom,true)", [])).filter(area__lt=float(max_area))
         return query_set
 
     # Выдает объекты, попадающие в окружность с центром в x, y и радиусом distance
     def filter_obj_in_radius(self, query_set, x_coords, y_coords, distance):
         point = Point(float(x_coords), float(y_coords), srid=4326)
-        return query_set.annotate(distance=Distance('geom', point)).order_by('distance')[0:distance]
+        return query_set.annotate(distance=Distance('geom', point)).order_by('distance')[0:int(distance)]
+
+
+def myArea(corners):
+    n = len(corners) # of corners
+    area = 0.0
+    for i in range(n):
+        j = (i + 1) % n
+        area += corners[i][0] * corners[j][1]
+        area -= corners[j][0] * corners[i][1]
+    area = abs(area) / 2.0
+    return area

@@ -15,7 +15,8 @@ class BuindingFiltersTestCase(TestCase):
 
     # Есть только максимальная площадь
     def test_filter_area_max(self):
-        response = self.client.get('/api/buildings/4/')
+        response = self.client.get('/api/buildings/0/')
+        print('ssssssssss', response.data)
         self.assertEqual(response.data,
                          Building(geom=Polygon((0.0, 0.0), (0.0, 50.0), (50.0, 50.0), (50.0, 0.0), (0.0, 0.0)),
                                   address='344091'))

@@ -8,4 +8,3 @@ class BuildingSerializer(GeoFeatureModelSerializer):
         model = Building
         fields = ('geom', 'address')
         geo_field = 'geom'
-        read_only_fields = ['distance']

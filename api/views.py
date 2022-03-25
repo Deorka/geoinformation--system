@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets
 from rest_framework.decorators import api_view
-from django_filters import rest_framework as filters
+from django.http import JsonResponse
 from django.contrib.gis.db.models.functions import Distance, Area
 from django.contrib.gis.geos import Point
 
@@ -12,7 +12,7 @@ from .serializer import BuildingSerializer
 class BuildingView(viewsets.ModelViewSet):
     queryset = Building.objects.all()
     serializer_class = BuildingSerializer
-    filter_backends = [filters.DjangoFilterBackend]
+    # filter_backends = [filters.DjangoFilterBackend]
 
     @api_view(['POST'])
     def create_item(self, request):
@@ -47,12 +47,8 @@ class BuildingView(viewsets.ModelViewSet):
             query_set = self.filter_obj_in_area(query_set, min_area, max_area)
         if x_coords and y_coords and distance:
             query_set = self.filter_obj_in_radius(query_set, x_coords, y_coords, distance)
-
-        '''if request.query_params:
-            query_set = Building.objects.filter(**request.query_param.dict()) 
-        else:
-            query_set = Building.objects.all() #queryset'''
-        return query_set
+        serializer = BuildingSerializer(query_set, many=True)
+        return JsonResponse(serializer.data, safe=False)
 
     # Выдает объекты, с площадью, попадающей в диапазон от min до max
     def filter_obj_in_area(self, query_set, min_area, max_area):

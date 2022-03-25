@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.gis',
+    'rest_framework',
     'rest_framework_gis',
     'api',
 ]
@@ -84,7 +85,12 @@ DATABASES = {
         'PASSWORD': 'gis12340987',
         'HOST': 'localhost',
         'PORT': '5432'
-    }
+    },
+    'other': {
+        'ENGINE': 'django.contrib.gis.db.backends.postgis',
+        'NAME': 'other',
+        'USER': 'geodjango',
+    },
 }
 
 

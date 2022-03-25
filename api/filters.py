@@ -1,26 +1,39 @@
 from rest_framework_gis.filterset import GeoFilterSet
-from rest_framework_gis.filters import GeometryFilter
-from django_filters import filters
-from .models import Building
-
-from django.contrib.gis.db.models.functions import Distance
-from django.contrib.gis.geos import GEOSGeometry, Point
+from django.contrib.gis.db.models.functions import Distance, Area
+from django.contrib.gis.geos import Point
 from rest_framework.decorators import action
-from django_filters import rest_framework as filters
+
+from .models import Building
 
 
 class BuildingFilters(GeoFilterSet):
-    geom_obj = filters.CharFilter(method='get_geo_objects')
-
     class Meta:
         model = Building
         exclude = ['geom']
 
-    def get_geo_objects(self, queryset, value):
-        query_set = Building.objects.filter(pk=value)
-        if query_set:
-            obj = query_set.first()
-            return queryset.filter(geom__within=obj.geom)
-        return queryset
+    # Выдает объекты, с площадью, попадающей в диапазон от min до max
+    @action(detail=False, methods=['get'])
+    def filter_obj_in_area(self, request):
+        min_area = request.GET.get('min', None)
+        max_area = request.GET.get('max', None)
+        query_set = Building.objects.all()
+        if min_area or max_area:
+            if min_area:
+                query_set = query_set.annotate(Area('geom') > min_area)
+            if max_area:
+                query_set = query_set.annotate(Area('geom') < max_area)
+            return query_set
+        else:
+            return query_set
 
-
+    # Выдает объекты, попадающие в окружность с центром в x, y и радиусом distance
+    @action(detail=False, methods=['get'])
+    def filter_obj_in_radius(self, request):  # queryset, value, point, distance):
+        x_coords = request.GET.get('x', None)
+        y_coords = request.GET.get('y', None)
+        distance = request.GET.get('dist', None)
+        if x_coords and y_coords and distance:
+            point = Point(float(x_coords), float(y_coords), srid=4326)
+            return Building.objects.annotate(distance=Distance('geom', point)).order_by('distance')[0:distance]
+        else:
+            return Building.objects.all()

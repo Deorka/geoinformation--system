@@ -33,16 +33,16 @@ class BuildingView(viewsets.ModelViewSet):
         query_set = query_set.annotate(area=RawSQL("ST_AREA(geom,true)", []))
         validate_positive_number(max_area)
         validate_positive_number(min_area)
+        if min_area and max_area:
+            if min_area > max_area:
+                raise ValidationError('Min must be greater than or equal to max!')
         if min_area:
             min_area = float(min_area)
             query_set = query_set.filter(area__gte=min_area)
-            if max_area:
-                max_area = float(max_area)
-                if max_area > min_area:
-                    query_set = query_set.filter(area__lte=max_area)
-        elif max_area:
-            max_area = float(max_area)
+        if max_area:
             query_set = query_set.filter(area__lte=max_area)
+        if max_area == min_area:
+            query_set = query_set.filter(area=max_area)
         return query_set
 
     # Выдает объекты, попадающие в окружность с центром в x, y и радиусом distance

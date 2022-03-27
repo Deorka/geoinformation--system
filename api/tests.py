@@ -1,4 +1,3 @@
-import json
 from django.test import TestCase
 from django.contrib.gis.geos import Polygon, GEOSGeometry
 
@@ -55,14 +54,36 @@ class BuindingFiltersTestCase(TestCase):
     # Площадь от мин до макс
     def test_filter_area(self):
         response = self.client.get('/api/buildings/?min=100000000&max=10000000000')
+        self.assertEqual(len(response.data['features']), 1)
         self.assertEqual(Polygon(response.data['features'][0]['geometry']['coordinates'][0], srid=4326),
                          self.building5.geom)
-
+        response = self.client.get('/api/buildings/?min=1111111&max=1111111')
+        self.assertEqual(len(response.data['features']), 0)
+        response = self.client.get('/api/buildings/?min=0&max=99999999999999')
+        self.assertEqual(len(response.data['features']), 5)
+        response = self.client.get('/api/buildings/?min=-9&max=gaga')
+        self.assertEqual(response.status_code, 400)
 
     # Попадает внутрь окружности
     def test_filter_distance_in(self):
-        pass
+        response = self.client.get('/api/buildings/?x=0&y=1&dist=4000000')
+        self.assertEqual(len(response.data['features']), 2)
+        self.assertEqual(Polygon(response.data['features'][0]['geometry']['coordinates'][0], srid=4326),
+                         self.building2.geom)
+        self.assertEqual(Polygon(response.data['features'][1]['geometry']['coordinates'][0], srid=4326),
+                         self.building4.geom)
+        response = self.client.get('/api/buildings/?x=-99&y=29&dist=100')
+        self.assertEqual(len(response.data['features']), 1)
+        self.assertEqual(Polygon(response.data['features'][0]['geometry']['coordinates'][0], srid=4326),
+                         self.building5.geom)
+        response = self.client.get('/api/buildings/?x=50&y=50&dist=1234567890')
+        self.assertEqual(len(response.data['features']), 5)
 
     # Не попадает внутрь окружности
     def test_filter_distance(self):
-        pass
+        response = self.client.get('/api/buildings/?x=60&y=10&dist=100')
+        self.assertEqual(len(response.data['features']), 0)
+        response = self.client.get('/api/buildings/?x=0&y=1&dist=-100')
+        self.assertEqual(response.status_code, 400)
+        response = self.client.get('/api/buildings/?x=165&y=-100&dist=10000')
+        self.assertEqual(len(response.data['features']), 0)

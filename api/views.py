@@ -1,9 +1,9 @@
 from django.db.models.expressions import RawSQL
-from django.shortcuts import get_object_or_404
 from rest_framework import viewsets
-from django.http import JsonResponse
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point
+from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
 
 from .models import Building
 from .serializer import BuildingSerializer
@@ -13,7 +13,7 @@ class BuildingView(viewsets.ModelViewSet):
     queryset = Building.objects.all()
     serializer_class = BuildingSerializer
 
-    def list(self, request):
+    def list(self, request, *args, **kwargs):
         min_area = request.GET.get('min', None)
         max_area = request.GET.get('max', None)
         x_coords = request.GET.get('x', None)
@@ -26,18 +26,39 @@ class BuildingView(viewsets.ModelViewSet):
         if x_coords and y_coords and distance:
             query_set = self.filter_obj_in_radius(query_set, x_coords, y_coords, distance)
         serializer = BuildingSerializer(query_set, many=True)
-        return JsonResponse(serializer.data, safe=False)
+        return Response(serializer.data)
 
     # Выдает объекты, с площадью, попадающей в диапазон от min до max
     def filter_obj_in_area(self, query_set, min_area, max_area):
         query_set = query_set.annotate(area=RawSQL("ST_AREA(geom,true)", []))
+        validate_positive_number(max_area)
+        validate_positive_number(min_area)
+        if min_area and max_area:
+            if min_area > max_area:
+                raise ValidationError('Min must be greater than or equal to max!')
         if min_area:
-            query_set = query_set.filter(area__gt=float(min_area))
+            min_area = float(min_area)
+            query_set = query_set.filter(area__gte=min_area)
         if max_area:
-            query_set = query_set.filter(area__lt=float(max_area))
+            query_set = query_set.filter(area__lte=max_area)
+        if max_area == min_area:
+            query_set = query_set.filter(area=max_area)
         return query_set
 
     # Выдает объекты, попадающие в окружность с центром в x, y и радиусом distance
     def filter_obj_in_radius(self, query_set, x_coords, y_coords, distance):
         point = Point(float(x_coords), float(y_coords), srid=4326)
-        return query_set.annotate(distance=Distance('geom', point)).order_by('distance')[0:int(distance)]
+        validate_positive_number(distance)
+        distance = float(distance)
+        if distance > 0:
+            return query_set.annotate(distance=Distance('geom', point)).filter(distance__lt=distance)
+
+
+def validate_positive_number(value):
+    if value:
+        try:
+            value = float(value)
+            if value < 0:
+                raise ValidationError("Negative value entered! Positive value required!")
+        except Exception:
+            raise ValidationError("String entered! Need a positive value!")

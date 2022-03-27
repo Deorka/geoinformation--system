@@ -17,5 +17,5 @@ Python, Django, Django REST Framework, PostgreSQL, PostGIS
 `sudo apt-get install postgresql`\
 `sudo apt-get install postgresql-postgis`
 - создать базу, подключиться к ней
-- создать и провести миграции
+- провести миграции
 - запустить программу `python manage.py runserver`
